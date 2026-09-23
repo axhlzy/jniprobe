@@ -1,0 +1,79 @@
+name: build
+
+# Auto-build on every push / PR. Does NOT create a release, and does NOT run
+# app_process (a plain Linux runner has no Android runtime / root / eBPF).
+on:
+  push:
+    branches: [ main, master ]
+    tags-ignore: [ '**' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  loader:
+    name: build jniprobe (arm64)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain (clang + libbpf headers)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm libbpf-dev
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Build (BPF + loader)
+        run: make GOC=go LIBBPF_INC=/usr/include
+
+      - name: Inspect artifact
+        run: |
+          file jniprobe
+          ls -l jniprobe loader/*.bpf.o
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jniprobe-arm64
+          path: |
+            jniprobe
+            loader/envprobe.bpf.o
+            loader/recon.bpf.o
+
+  android-test:
+    name: build jni_fulltest (arm64, artifacts only)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK / SDK packages
+        run: |
+          sdkmanager --install "ndk;26.1.10909125" "platforms;android-33" "build-tools;34.0.0"
+
+      - name: Build test artifacts (libjnifull.so + classes.dex)
+        run: NDK_HOME="$ANDROID_SDK_ROOT/ndk/26.1.10909125" bash test/jni_fulltest/build.sh
+
+      - name: Upload test artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jni_fulltest-arm64
+          path: |
+            test/jni_fulltest/build/arm64-v8a/libjnifull.so
+            test/jni_fulltest/build/dex/classes.dex

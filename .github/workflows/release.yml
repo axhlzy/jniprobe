@@ -1,0 +1,54 @@
+name: release
+
+# Manual, one-shot release. Trigger it from Actions -> release -> Run workflow.
+# It does NOT run automatically on push/tags.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v0.1.0)'
+        required: true
+        default: 'v0.1.0'
+      name:
+        description: 'Release title (optional)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain (clang + libbpf headers)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang llvm libbpf-dev
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Build (BPF + loader)
+        run: make GOC=go LIBBPF_INC=/usr/include
+
+      - name: Inspect artifact
+        run: |
+          file jniprobe
+          ls -l jniprobe loader/*.bpf.o
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          name: ${{ inputs.name != '' && inputs.name || inputs.tag }}
+          files: |
+            jniprobe
+            README.md
+            README.zh.md
+          generate_release_notes: true

@@ -1,0 +1,18 @@
+# build artifacts
+/jniprobe
+loader/*.bpf.o
+*.bpf.o
+
+# test build outputs
+test/jni_fulltest/build/
+test/jni_fulltest/gradle/
+test/jni_fulltest/.gradle/
+test/jni_fulltest/build/
+
+# logs
+*.log
+
+# editors
+.vscode/
+.idea/
+*.iml
